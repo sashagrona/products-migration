@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation=" http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd  http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd  http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd">
+    <http:listener-config name="postgres-db-to-sfdc-api-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+    <apikit:config name="postgres-db-to-sfdc-api-config" api="postgres-to-sfdc-api.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <global-property doc:name="Global Property" doc:id="4c8d17ba-1968-45b3-bca6-6334c9143983" name="env" value="dev" />
+    <salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="e65ba224-5706-465e-9500-3d6a9a5c83a0">
+        <salesforce:basic-connection username="${salesforce.username}" password="${secure::salesforce.password}" securityToken="${secure::salesforce.token}" />
+    </salesforce:sfdc-config>
+    <secure-properties:config name="Secure_Properties_Config" doc:name="Secure Properties Config" doc:id="e8fbd521-aee4-4603-98f4-21ebf36ee833" file="${env}-config.yaml" key="${encryptKey}" />
+    <global-property doc:name="Global Property" doc:id="00052c1c-1e6b-4c40-b89a-e367704efd15" name="encryptKey" value="C*F-JaNdRgUkXp2s" />
+    <configuration-properties doc:name="Configuration properties" doc:id="e27b4fb4-ef6c-41e5-82fb-6bfd9c68f7c7" file="${env}-config.yaml" />
+    <configuration doc:name="Configuration" doc:id="edd07551-b114-42ac-a527-4cbec15d5ab0" defaultErrorHandler-ref="global_Error_Handler" />
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="c48de7ec-5c8c-460b-8570-0ec8f40f5b82" >
+		<db:generic-connection url="${postgres.url}" driverClassName="${postgres.driver}" user="${postgres.user}" password="${postgres.password}" />
+	</db:config>
+</mule>

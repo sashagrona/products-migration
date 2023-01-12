@@ -1,0 +1,17 @@
+version: '3.3'
+services:
+  db:
+    image: postgres:14.1-alpine
+    restart: always
+    environment:
+      - POSTGRES_DB=products
+      - POSTGRES_USER=student
+      - POSTGRES_PASSWORD=student
+    ports:
+      - '5432:5432'
+    volumes: 
+      - db:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init_db.sql
+volumes:
+  db:
+    driver: local

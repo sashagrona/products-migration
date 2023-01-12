@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation"
+	xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:batch="http://www.mulesoft.org/schema/mule/batch"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd 
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd">
+	<flow name="migrateFlow" doc:id="6aa21ffb-111a-40a3-96eb-a098c7894871" >
+		<set-variable value="#[attributes.uriParams.business_object]" doc:name="tableName" doc:id="b9fb6152-678b-4207-91ec-919cded9b0cd" variableName="tableName"/>
+		<db:select doc:name="Retrieve data from database" doc:id="5a780035-b45b-4f6e-b334-c628e6c834ad" config-ref="Database_Config">
+			<db:sql ><![CDATA[#['SELECT * FROM ' ++ (vars.tableName default "")]
+]]></db:sql>
+		</db:select>
+		<logger level="INFO" doc:name="Retrieval results" doc:id="0e177c7b-a837-4c62-8207-c9b64421580a" message='#[%dw 2.0&#10;output text/plain&#10;---&#10;"\n" ++ "Succesfully retrieved " ++ sizeOf(payload) ++ " instances of type " ++ (vars.tableName default "") ++ " from postgres db" ++ "\n"]'/>
+		<choice doc:name="Choice" doc:id="5a1dbde6-5ea6-4170-a67a-af6e1c789875" >
+			<when expression="#[vars.tableName == 'PRODUCT']">
+				<flow-ref doc:name="products" doc:id="1ee508d1-0ff9-45d1-a4ce-127c57da0470" name="products"/>
+			
+</when>
+			<when expression="#[vars.tableName == 'CATEGORY']">
+				<flow-ref doc:name="categories" doc:id="b6298ea5-68f5-4b35-a9c7-cccd5b3da7ed" name="product_categories"/>
+			</when>
+			<when expression="#[vars.tableName == 'SHOP']">
+				<flow-ref doc:name="shops" doc:id="d689aa55-2b5c-4b47-9afd-91d77bc20e08" name="shops"/>
+			</when>
+			<otherwise >
+				<raise-error doc:name="Invalid table" doc:id="87f0eacd-baac-4ecd-af4c-4e2b757432f8" type="APP:INVALID_TABLE_NAME" description="#['Table ($(vars.tableName)) doesn`t exist!']"/>
+			
+</otherwise>
+		</choice>
+		<ee:transform doc:name="Start of migration message" doc:id="6b7e77e4-956b-41d1-85bc-cc347ea9fcb3" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Successfully started migrating the " ++ (vars.tableName default "") ++ " table."}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	
+</flow>
+	
+	<flow name="product_categories" doc:id="652bca8d-2b5d-49b3-953a-b6bd76f674f0">
+		<async doc:name="Async" doc:id="aaf3d245-420a-424b-bfcd-a4c3b3189a35" >
+			<ee:transform doc:name="Transform to salesforce format" doc:id="68c77670-7006-45d6-bfa2-125bd6403da3">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+payload map {
+	Name: $.name,
+	CATEGORY_ID__c: $.id as String
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+			<foreach doc:name="For Each 200 records" doc:id="bcba4a9e-9566-4986-9556-02947451b4e5" batchSize="200">
+				<salesforce:upsert doc:name="Upsert" doc:id="b31ede6e-f139-4b63-8c22-4ab137e660d5" config-ref="Salesforce_Config" objectType="PRODUCT_CATEGORY__c" externalIdFieldName="CATEGORY_ID__c" />
+			</foreach>
+			<logger level="INFO" doc:name="Migration results" doc:id="c9ab6e42-7e54-4ec9-b0e3-998c937d23f0" message='#[%dw 2.0&#10;output text/plain&#10;---&#10;"\n" ++ "Finished migrating the Category table." ++ " Successfully migrated " ++ (sizeOf(payload) default 0)++" records" ++"\n"]' />
+		</async>
+	</flow>
+	<flow name="shops" doc:id="1cff600a-b8d1-4c85-b65e-65832c0e224a">
+		<async doc:name="Async" doc:id="bc380982-ec08-4749-87df-f8ee13c168be" >
+			<ee:transform doc:name="Transform to salesforce format" doc:id="c8656122-5cfb-4b42-9b59-55e2a3e733da">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+payload map {
+	Name: $.name,
+	SHOP_ID__c: $.id as String,
+	ADDRESS__c: $.address
+	
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			<foreach doc:name="For Each 200 records" doc:id="73303fda-31d9-48a0-83f4-daef4ffd3fa9" batchSize="200">
+			<salesforce:upsert doc:name="Upsert" doc:id="7380f908-da0b-4167-8e1a-a5e2a0649f2c" config-ref="Salesforce_Config" objectType="SHOP__c" externalIdFieldName="SHOP_ID__c" />
+		</foreach>
+			<logger level="INFO" doc:name="Migration results" doc:id="1a3a57ce-560a-4947-b7b1-956acd80ba3d" message='#[%dw 2.0&#10;output text/plain&#10;---&#10;"\n" ++ "Finished migrating the SHOPS table." ++ " Successfully migrated " ++ (sizeOf(payload) default 0)++" records" ++"\n"]' />
+		</async>
+	</flow>
+	<flow name="products" doc:id="ea5623b1-d264-43d9-8c3e-6314333d0021">
+		<async doc:name="Async" doc:id="3fb8381e-324a-4b38-a30d-4fd6964d144c" >
+			<flow-ref doc:name="getValidProducts" doc:id="4820632a-dd2f-4076-a6c0-af4f692ba2e0" name="getValidProducts" />
+			<ee:transform doc:name="Transform to salesforce format" doc:id="3733d0d4-f175-48c1-ace8-c3ff56becbc3">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+payload map {
+	Name: $.name,
+	PRODUCT_ID__c: $.id as String,
+	DESCRIPTION__c: $.description,
+	STANDARD_COST__c: $.standard_cost*100,
+	LIST_PRICE__c: $.least_price as String {format: "0.00"},
+	CATEGORY_ID__c: $.category_id as String,
+	SHOP_ID__c: $.shop_id as String
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+			<foreach doc:name="For Each 200 records" doc:id="c60578b5-4616-4c05-8245-225422ddeafa" batchSize="200">
+			<salesforce:upsert doc:name="Upsert" doc:id="4893fa0a-cac7-4680-a641-8b4c375f2862" config-ref="Salesforce_Config" objectType="PRODUCT__c" externalIdFieldName="PRODUCT_ID__c" />
+		</foreach>
+			<logger level="INFO" doc:name="Migration results" doc:id="a8d4b9dd-f870-4307-a365-499d0bc871c6" message='#[%dw 2.0&#10;output text/plain&#10;---&#10;"\n" ++ "Finished migrating the PRODUCTS table." ++ " Successfully migrated " ++ (sizeOf(payload) default 0)++" records" ++"\n"]' />
+		</async>
+	
+</flow>
+	<flow name="getValidProducts" doc:id="6f4de7fd-9a19-4fec-b2d8-941370ef349e" >
+		<salesforce:query doc:name="All categories from salesforce" doc:id="894d3017-443f-4cb9-9a69-d75c4953ba98" config-ref="Salesforce_Config" target="all_categories">
+			<error-mapping targetType="APP:ERROR_RETRIEVE_SALESFORCE" />
+			<salesforce:salesforce-query><![CDATA[SELECT CATEGORY_ID__c, Id__c FROM PRODUCT_CATEGORY__c]]></salesforce:salesforce-query>
+		</salesforce:query>
+		<salesforce:query doc:name="All shops from salesforce" doc:id="f70980b9-8d1b-4f76-99f1-2968fb81ef78" config-ref="Salesforce_Config" target="all_shops">
+			<error-mapping targetType="APP:ERROR_RETRIEVE_SALESFORCE" />
+			<salesforce:salesforce-query><![CDATA[SELECT SHOP_ID__c, Id FROM SHOP__c]]></salesforce:salesforce-query>
+		</salesforce:query>
+		<logger level="INFO" doc:name="Quering summary" doc:id="8f55d094-647f-4e74-8066-b3abc182b68c" message='#[%dw 2.0&#10;&#10;output text/plain&#10;&#10;---&#10;&#10;"\n" ++ "Succesfully retrieved " ++ sizeOf(vars.all_categories) ++ " existing categories from salesforce" ++ &#10;"\n" ++  "Succesfully retrieved " ++ sizeOf(vars.all_shops) ++ " existing shops from salesforce" ++ "\n"]' />
+		<ee:transform doc:name="Join products with shops and categories" doc:id="cbd3c4d5-e3ba-4e20-8d44-b5b85ec9944d">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+payload as Array map(obj) -> {(obj ++ {
+	sf_shop: (vars.all_shops filter ($.SHOP_ID__c as Number) == obj.shop_id)[0].SHOP_ID__c,
+	sf_category: (vars.all_categories filter ($.CATEGORY_ID__c as Number) == obj.category_id)[0].CATEGORY_ID__c
+	})
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<ee:transform doc:name="Filter valid products" doc:id="79665356-b816-49b3-898a-68274acefae6">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+payload filter ($.sf_category != null and $.sf_shop != null)]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="unknownCategories" ><![CDATA[%dw 2.0
+output application/java
+---
+(payload filter $.sf_category==null).*category_id distinctBy (value) -> { "unique" : value }]]></ee:set-variable>
+				<ee:set-variable variableName="unknownShops" ><![CDATA[%dw 2.0
+output application/java
+---
+(payload filter $.sf_shop==null).*shop_id distinctBy (value) -> { "unique" : value }]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<choice doc:name="if some shops or categories don`t exist in salesforce" doc:id="76a0722a-0b6f-47e0-9a1c-52427d1f92c8" >
+			<when expression="#[vars.unknownCategories != null or vars.unknownShops !=null]">
+				<logger level="ERROR" doc:name="Error message" doc:id="5afb3c5c-c759-448a-bc9c-ecaf72515af0" message='#[%dw 2.0&#10;output text/plain&#10;&#10;fun categoriesErrorMessage(categories) =&#10;	if(categories != null)&#10;		"\n" ++ "Cannot migrate some instances of type PRODUCTS. Categories with ids ["++ (categories  joinBy ",") ++"] don`t exist in salesforce. Please, make sure to import all categories first." ++ "\n"&#10;	else ""&#10;fun shopsErrorMessage(shops) =&#10;	if(shops != null)&#10;		"\n" ++ "Cannot migrate some instances of type PRODUCTS. Shops with ids ["++ (shops joinBy ",") ++"] don`t exist in salesforce. Please, make sure to import all shops first." ++ "\n"&#10;	else ""&#10;&#10;---&#10;categoriesErrorMessage(vars.unknownCategories) ++ shopsErrorMessage(vars.unknownShops)]' />
+			</when>
+		</choice>
+	</flow>
+	<flow name="getSalesforceData" doc:id="52fdfae3-2426-499f-9a16-5337ccd99814" >
+		<ee:transform doc:name="Set tableName and sqlFields" doc:id="4f3b3864-ae7e-4e3d-9c67-40886bb4c277">
+			<ee:message>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="tableName"><![CDATA[%dw 2.0
+output application/java
+---
+attributes.uriParams.business_object match{
+	case "PRODUCT" -> "PRODUCT__c"
+	case "CATEGORY" -> "PRODUCT_CATEGORY__c"
+	case "SHOP" -> "SHOP__c"
+	else -> ""
+}]]></ee:set-variable>
+				<ee:set-variable variableName="sqlFields"><![CDATA[%dw 2.0
+output application/java
+---
+attributes.uriParams.business_object match{
+	case "PRODUCT" -> "Name, PRODUCT_ID__c, DESCRIPTION__c, STANDARD_COST__c, LIST_PRICE__c, CATEGORY_ID__c, SHOP_ID__c"
+	case "CATEGORY" -> "Name, CATEGORY_ID__c"
+	case "SHOP" -> "Name, SHOP_ID__c, ADDRESS__c"
+	else -> ""
+}
+	]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<salesforce:query doc:name="All records of an object" doc:id="37198331-215a-434e-9a2f-e16678c7325e" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query ><![CDATA[#["SELECT " ++ vars.sqlFields ++ " FROM " ++ vars.tableName]]]></salesforce:salesforce-query>
+		</salesforce:query>
+		<set-payload value='#[output application/csv --- (payload map ($ - "type" - "Id"))]' doc:name="Transform to csv format" doc:id="524ca1a1-5d62-4e6c-ac02-13184b6e999c" />
+	</flow>
+
+
+</mule>

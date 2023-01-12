@@ -1,0 +1,62 @@
+#%RAML 1.0
+title: postgres-db-to-sfdc-api
+    
+
+/{business_object}/to-sfdc:
+  uriParameters:
+    business_object:
+      description: The name of the table to be migrated
+      required: true
+      enum:
+        - PRODUCT
+        - CATEGORY
+        - SHOP
+
+  get:
+    description: Start the data migration from postgres db to salesforce
+    responses:
+      200:
+        body:
+            application/json:
+              example:
+                message: Data sucessfully migrated!
+      400:
+        body:
+          application/json:
+            example:
+              message: Bad request.
+
+      500:
+        body:
+          application/json:
+            example:
+              message: Error occured while data migration. Please, try again.
+
+/export/{business_object}:
+  uriParameters:
+    business_object:
+      description: The name of the salesforce object
+      required: true
+      enum:
+        - PRODUCT
+        - CATEGORY
+        - SHOP
+
+  get:
+    description: Retrieve the exported data from salesforce
+    responses:
+      200:
+        body:
+            application/csv:
+          
+      400:
+        body:
+          application/json:
+            example:
+              message: Bad request.
+
+      500:
+        body:
+          application/json:
+            example:
+              message: Error occured while retrieving the data. Please, try again.

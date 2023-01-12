@@ -1,0 +1,10 @@
+postgres:
+  url: "jdbc:postgresql://localhost:5432/products"
+  driver: "org.postgresql.Driver"
+  user: "student"
+  password: "student"
+  
+salesforce:
+  username: "username"
+  password: "![encrypted_pass]"
+  token: "FtANYff2v2vrEXQYyj1eDziQ"
